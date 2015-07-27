@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ ! -d "/log/nginx/service" ]; then
+  mkdir -p /log/nginx/service
+  chown -R app: /log/nginx/service
+fi
+
+exec multilog t /log/nginx/service
+

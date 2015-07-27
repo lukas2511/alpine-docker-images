@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ ! -d "/log/php/service" ]; then
+  mkdir -p /log/php/service
+  chown -R app: /log/php/service
+fi
+
+exec multilog t /log/php/service
+

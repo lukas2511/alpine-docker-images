@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ ! -d "/log/varnish/service" ]; then
+  mkdir -p /log/varnish/service
+  chown -R app: /log/varnish/service
+fi
+
+exec multilog t /log/varnish/service
+

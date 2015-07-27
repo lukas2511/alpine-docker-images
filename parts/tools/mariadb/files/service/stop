@@ -1,0 +1,5 @@
+#!/bin/sh
+
+svc -o /service/mariadb
+mysqladmin -u root -p$(sed '/password/{s/^password=//;q};d' /root/.my.cnf) shutdown
+sync

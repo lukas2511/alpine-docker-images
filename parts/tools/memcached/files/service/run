@@ -1,0 +1,7 @@
+#!/bin/ash
+
+mkdir -p /log/memcached
+chown -R app: /log/memcached
+
+exec 2>&1
+exec memcached -u app -l 127.0.0.1 -v -t 2

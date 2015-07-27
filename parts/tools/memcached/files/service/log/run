@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ ! -d "/log/memcached/service" ]; then
+  mkdir -p /log/memcached/service
+  chown -R app: /log/memcached/service
+fi
+
+exec multilog t /log/memcached/service
+

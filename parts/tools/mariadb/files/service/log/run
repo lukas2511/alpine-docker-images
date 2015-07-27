@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ ! -d "/log/mariadb/service" ]; then
+  mkdir -p /log/mariadb/service
+  chown -R app: /log/mariadb/service
+fi
+
+exec multilog t /log/mariadb/service
+

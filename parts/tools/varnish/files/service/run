@@ -1,0 +1,12 @@
+#!/bin/ash
+
+mkdir -p /log/varnish
+chown -R app: /log/varnish
+
+rm -rf /var/lib/varnish
+mkdir -p /var/lib/varnish
+
+cd /etc/varnish
+
+exec 2>&1
+exec varnishd -a 0.0.0.0:80 -f /etc/varnish/default.vcl -F

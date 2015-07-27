@@ -1,0 +1,21 @@
+#!/bin/ash
+
+mkdir -p /log/php
+chown -R app: /log/php
+
+if [ ! -e "/app/www" ]; then
+	mkdir -p /app/www
+	echo '<?php phpinfo(); ?>' > /app/www/index.php
+	chown -R app: /app/www
+fi
+
+mkdir -p /tmp/php-sessions /tmp/php-uploads
+chown -R app: /tmp
+
+echo 'php_admin_value[sendmail_path] = "/usr/sbin/sendmail -S 172.17.42.1 -t -i -f '${MAIL_FROM:-no-reply@${VIRTUAL_HOST}}'"' >> /etc/php/php-fpm.conf
+echo 'php_admin_value[date.timezone] = "'${TIMEZONE:-Europe/Berlin}'"' >> /etc/php/php-fpm.conf
+
+env | sed "s/\(.*\)=\(.*\)/env[\1]='\2'/" >> /etc/php/php-fpm.conf
+
+exec 2>&1
+exec php-fpm -F -y /etc/php/php-fpm.conf

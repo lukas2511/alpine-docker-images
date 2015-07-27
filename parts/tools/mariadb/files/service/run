@@ -1,0 +1,84 @@
+#!/bin/sh
+
+# exit on error
+
+exec 2>&1
+
+set -e
+
+mkdir -p /log/mariadb
+chown -R app: /log/mariadb
+
+if [ ! -h /root/.my.cnf ]; then
+	echo "[...] Linking root config to /root"
+	ln -s /app/mysql/my_root.cnf /root/.my.cnf
+fi
+
+if [ ! -e "/run/mysqld" ]; then
+	echo "[...] Creating socket directory"
+	mkdir /run/mysqld
+	chown mysql: /run/mysqld
+	chmod 755 /run/mysqld
+fi
+
+if [ -e /app/mysql/my.cnf ] && ! cmp /app/mysql/my.cnf /etc/mysql/my.cnf > /dev/null; then
+	echo "[...] Installing custom server config"
+	cat /app/mysql/my.cnf > /etc/mysql/my.cnf
+fi
+
+if [ ! -e /app/mysql/mysql ]; then
+	echo "[...] Creating database directory"
+	mkdir -p /app/mysql/mysql
+	chown -R mysql: /app/mysql
+	chmod 755 /app/mysql -R
+
+	echo "[...] Creating initial database server structure"
+	su mysql -s /bin/sh -c "mysql_install_db --datadir=/app/mysql/mysql" > /dev/null
+
+	echo "[...] Starting and waiting for temporary database server"
+	su mysql -s /bin/sh -c "mysqld --basedir=/usr --datadir=/app/mysql/mysql --plugin-dir=/usr/lib/mysql/plugin --user=mysql --log-error=/log/mariadb/error.log --pid-file=/run/mysqld.pid --socket=/run/mysqld/mysqld.sock --port=3306" &
+	while [ ! -e /run/mysqld/mysqld.sock ]; do sleep 1; done
+	sleep 1
+
+	echo "[...] Removing some crap"
+	echo "DROP DATABASE test;" | mysql
+	echo "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'" | mysql
+	echo "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" | mysql
+
+	echo "[...] Creating app user and db"
+	MYSQL_APP_PASSWORD="$(pwgen 50 1)"
+	echo "CREATE DATABASE app;" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app`.* TO '"'app'@'127.0.0.1' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app`.* TO '"'app'@'::1' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app`.* TO '"'app'@'localhost' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app_%`.* TO '"'app'@'127.0.0.1' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app_%`.* TO '"'app'@'::1' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+	echo 'GRANT ALL PRIVILEGES ON `app_%`.* TO '"'app'@'localhost' IDENTIFIED BY '$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')';" | mysql
+
+	echo "[...] Generating and setting new root password"
+	MYSQL_ROOT_PASSWORD="$(pwgen 50 1)"
+	echo "UPDATE mysql.user SET Password=PASSWORD('$(echo $MYSQL_ROOT_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')') WHERE User='root';" | mysql
+
+	# write root and app passwords to config files
+	echo "[...] Writing root and app passwords to config files"
+	echo "[mysql]" > /app/mysql/my_root.cnf
+	echo "user=root" >> /app/mysql/my_root.cnf
+	echo "password=$(echo $MYSQL_ROOT_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')" >> /app/mysql/my_root.cnf
+	echo "[mysql]" > /app/mysql/my_app.cnf
+	echo "user=app" >> /app/mysql/my_app.cnf
+	echo "password=$(echo $MYSQL_APP_PASSWORD | sed 's/\(['"'"'\]\)/\\\1/g')" >> /app/mysql/my_app.cnf
+
+	echo "[...] Stopping temporary database server"
+	killall mysqld
+	while [ ! "$(ps auxw | grep mysqld | grep -v grep)" = "" ]; do sleep 1; done
+	sync
+fi
+
+echo "[...] Fixing ownership and permissions"
+chown -R mysql: /app/mysql
+chown root: /app/mysql/my_root.cnf
+chown app: /app/mysql/my_app.cnf
+chmod 600 /app/mysql/my_*.cnf
+
+echo "[...] Starting database server"
+exec su mysql -s /bin/sh -c "mysqld --basedir=/usr --datadir=/app/mysql/mysql --plugin-dir=/usr/lib/mysql/plugin --user=mysql --log-error=/log/mariadb/error.log --pid-file=/run/mysqld.pid --socket=/run/mysqld/mysqld.sock --port=3306"

@@ -1,0 +1,10 @@
+#!/bin/ash
+
+mkdir -p /log/nginx
+chown -R app: /log/nginx
+
+mkdir -p /var/lib/nginx
+chown -R app:app /var/lib/nginx
+
+exec 2>&1
+exec nginx -c /etc/nginx/nginx.conf
