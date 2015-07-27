@@ -158,7 +158,10 @@ rebuild_base_image() {
 }
 
 # image list
-IMAGES="$(for image in images/*; do echo $image | cut -d/ -f2; done)"
+IMAGES=""
+for image in images/*; do
+	IMAGES="${IMAGES} $(echo ${image} | cut -d/ -f2)"
+done
 
 # create buildlog directory
 mkdir -p .log
